@@ -1,0 +1,128 @@
+/*
+ * Styles for report_completionsearch.
+ *
+ * The index.php page of this report reuses the markup produced by the core
+ * report_progress ("Activity completion") and report_completion ("Course completion")
+ * reports, so this file merges both core stylesheets, rescoping every
+ * "#page-report-progress-index" / "#page-report-completion-index" selector (and any
+ * other page-id selector) to "#page-report-completionsearch-index".
+ *
+ * Origin: report/progress/styles.css
+ */
+
+#page-report-completionsearch-index #completion-progress-wrapper #completion-progress th,
+#page-report-completionsearch-index #completion-progress-wrapper #completion-progress td {
+    padding: 2px 2px;
+    font-weight: normal;
+    border-right: 1px solid #eee;
+}
+
+#page-report-completionsearch-index .progress-actions {
+    text-align: center;
+    list-style: none;
+}
+
+#page-report-completionsearch-index .completion_pagingbar {
+    margin: 1em 0;
+    text-align: center;
+}
+
+#page-report-completionsearch-index .completion_prev {
+    display: inline;
+    margin-right: 2em;
+}
+
+#page-report-completionsearch-index .completion_pagingbar p {
+    display: inline;
+}
+
+#page-report-completionsearch-index .completion_next {
+    display: inline;
+    margin-left: 2em;
+}
+
+#page-report-completionsearch-index .completion-header,
+#page-report-completionsearch-index .completion-progresscell {
+    text-align: center;
+}
+
+/* Custom CSS for rotated header.. */
+#page-report-completionsearch-index #completion-progress-wrapper .rotated-text-container {
+    display: inline-block;
+    width: 16px;
+}
+
+#page-report-completionsearch-index #completion-progress-wrapper .rotated-text {
+    display: inline-block;
+    white-space: nowrap;
+    /*rtl:remove*/
+    transform: translate(0, 100%) rotate(-90deg);
+    /*rtl:raw:
+    transform: translate(0, 100%) rotate(90deg);
+    */
+    transform-origin: 0 0;
+    vertical-align: middle;
+}
+
+#page-report-completionsearch-index #completion-progress-wrapper .rotated-text:after {
+    content: "";
+    float: left;
+    margin-top: 100%;
+}
+
+#page-report-completionsearch-index .modicon {
+    padding-top: 5px;
+}
+
+#completion-progress .icon {
+    margin-left: 0.5rem;
+}
+
+/*
+ * Origin: report/completion/styles.css
+ */
+
+#page-report-completionsearch-index table#completion-progress.completionreport {
+    margin-top: 20px;
+    margin-bottom: 30px;
+}
+
+#page-report-completionsearch-index .export-actions {
+    text-align: center;
+    list-style: none;
+}
+
+#page-report-completionsearch-index .criterianame,
+#page-report-completionsearch-index .criteriaicon,
+#page-report-completionsearch-index .completion-progresscell {
+    text-align: center;
+}
+
+/*
+ * report_completion defines its own copy of the rotated header rules, wrapped in "rtl:begin:ignore"
+ * (so it does not flip in RTL, unlike the report_progress copy above). Each copy is scoped to the
+ * markup of its own report (#completion-progress-wrapper vs table.completionreport), otherwise this
+ * block would override the progress one on the shared page id and break the RTL layout.
+ */
+
+/*rtl:begin:ignore*/
+#page-report-completionsearch-index .completionreport .rotated-text-container {
+    display: inline-block;
+    width: 16px;
+}
+
+#page-report-completionsearch-index .completionreport .rotated-text {
+    display: inline-block;
+    white-space: nowrap;
+
+    transform: translate(0, 100%) rotate(-90deg);
+    transform-origin: 0 0;
+    vertical-align: middle;
+}
+
+#page-report-completionsearch-index .completionreport .rotated-text:after {
+    content: "";
+    float: left;
+    margin-top: 100%;
+}
+/*rtl:end:ignore*/
