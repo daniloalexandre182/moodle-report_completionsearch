@@ -41,14 +41,17 @@ $search = optional_param('search', '', PARAM_TEXT);
 $reporttype = optional_param('report', report_base::TYPE_COMPLETION, PARAM_ALPHA);
 $run = optional_param('run', false, PARAM_BOOL);
 
-// Export, sorting and paging (shared by both reports; 'page' is used by the activity completion report and
-// 'start' by the course completion report, as in core).
+// Export, sorting and paging, as in core: the course completion report exports CSV files ('format') and pages
+// with 'start', the activity completion report exports any dataformat ('dataformat') and pages with 'page'.
 $format = optional_param('format', '', PARAM_ALPHA);
+$dataformat = optional_param('dataformat', '', PARAM_ALPHA);
 $sort = optional_param('sort', '', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
 $start = optional_param('start', 0, PARAM_INT);
+$groupid = optional_param('group', 0, PARAM_INT);
 $activityinclude = optional_param('activityinclude', 'all', PARAM_ALPHANUMEXT);
 $activityorder = optional_param('activityorder', 'orderincourse', PARAM_ALPHA);
+$activitysection = optional_param('activitysection', -1, PARAM_INT);
 
 $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
 $context = context_course::instance($course->id);
@@ -61,8 +64,21 @@ require_login($course);
 // Check basic permission.
 require_capability('report/completionsearch:view', $context);
 
-// Get group mode.
-$group = groups_get_course_group($course, true); // Supposed to verify group.
+// Normalise the report type (needed to pick the group the same way as the matching core report).
+$reportoptions = report_base::get_type_options();
+if (!array_key_exists($reporttype, $reportoptions)) {
+    $reporttype = report_base::TYPE_COMPLETION;
+}
+
+// Get group mode. As the core activity completion report does in Moodle 5.2, any visible group can be picked
+// through the 'group' parameter unless the course is in separate groups mode.
+if ($reporttype === report_base::TYPE_PROGRESS && $course->groupmode != SEPARATEGROUPS) {
+    // Unlike core, also make sure the group belongs to this course.
+    $groupincourse = $groupid && ($grouprecord = groups_get_group($groupid)) && $grouprecord->courseid == $course->id;
+    $group = ($groupincourse && groups_group_visible($groupid, $course)) ? $groupid : 0;
+} else {
+    $group = groups_get_course_group($course, true); // Supposed to verify group.
+}
 if ($group === 0 && $course->groupmode == SEPARATEGROUPS) {
     require_capability('moodle/site:accessallgroups', $context);
 }
@@ -71,10 +87,6 @@ if ($group === 0 && $course->groupmode == SEPARATEGROUPS) {
 $fieldoptions = user_filter::get_field_options($context);
 if (!array_key_exists($searchfield, $fieldoptions)) {
     $searchfield = user_filter::FIELD_FULLNAME;
-}
-$reportoptions = report_base::get_type_options();
-if (!array_key_exists($reporttype, $reportoptions)) {
-    $reporttype = report_base::TYPE_COMPLETION;
 }
 $filter = new user_filter($searchfield, $search);
 
@@ -115,20 +127,23 @@ if (!$run) {
 
 $options = [
     'sort' => $sort,
-    'format' => $format,
 ];
 if ($reporttype === report_base::TYPE_PROGRESS) {
     $options += [
+        'dataformat' => $dataformat,
         'page' => $page,
         'activityinclude' => $activityinclude,
         'activityorder' => $activityorder,
+        'activitysection' => $activitysection,
     ];
     $report = new progress_report($course, $context, $filter, $filterurl, $group, $options);
 } else {
+    $options['format'] = $format;
     $options['start'] = $start;
     $report = new completion_report($course, $context, $filter, $filterurl, $group, $options);
 }
 $PAGE->set_url($report->get_url());
+$PAGE->navigation->override_active_url(new moodle_url('/report/completionsearch/index.php', ['course' => $course->id]));
 
 // Load the report data (throws the same errors as core, e.g. no completion criteria set).
 $report->load();

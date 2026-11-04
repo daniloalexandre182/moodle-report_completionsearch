@@ -31,11 +31,13 @@ use report_progress\local\helper;
 /**
  * Activity completion report.
  *
- * Port of the core report/progress/index.php script (Moodle 4.1) where the first/last name initials bar
- * has been replaced by {@see user_filter}. The markup, the export files and the manual completion override
- * (AMD module report_progress/completion_override) are kept identical to core.
+ * Port of the core report/progress/index.php script (Moodle 5.2) where the first/last name initials bar
+ * has been replaced by {@see user_filter}. The markup, the section and group selectors, the dataformat
+ * downloads and the manual completion override (AMD module report_progress/completion_override) are kept
+ * identical to core.
  *
- * Supported options (constructor): 'sort', 'format', 'page', 'activityinclude', 'activityorder'.
+ * Supported options (constructor): 'sort', 'dataformat', 'page', 'activityinclude', 'activityorder',
+ * 'activitysection'.
  *
  * @package    report_completionsearch
  * @copyright  2026 Danilo Machado <danilo.alexandre182@gmail.com>
@@ -50,6 +52,12 @@ class progress_report extends report_base {
 
     /** @var string Activity order ('orderincourse' or 'alphabetical'). */
     protected $activityorder;
+
+    /** @var int Section number the activities are filtered by (-1 for every section). */
+    protected $activitysection;
+
+    /** @var string Requested download dataformat ('' for the HTML report). */
+    protected $dataformat;
 
     /** @var array Available activity types, set by load(). */
     protected $activitytypes = [];
@@ -71,7 +79,7 @@ class progress_report extends report_base {
      * @param user_filter $filter The user filter.
      * @param moodle_url $filterurl URL of the report page holding the filter parameters.
      * @param int $groupid The active group (as returned by groups_get_course_group()).
-     * @param array $options 'sort', 'format', 'page', 'activityinclude', 'activityorder'.
+     * @param array $options 'sort', 'dataformat', 'page', 'activityinclude', 'activityorder', 'activitysection'.
      */
     public function __construct(
         \stdClass $course,
@@ -85,6 +93,8 @@ class progress_report extends report_base {
         $this->page = max(0, (int) ($options['page'] ?? 0));
         $this->activityinclude = (string) ($options['activityinclude'] ?? 'all');
         $this->activityorder = (string) ($options['activityorder'] ?? 'orderincourse');
+        $this->activitysection = (int) ($options['activitysection'] ?? -1);
+        $this->dataformat = (string) ($options['dataformat'] ?? '');
 
         // Whether to show extra user identity information.
         $userfields = \core_user\fields::for_identity($context);
@@ -110,8 +120,8 @@ class progress_report extends report_base {
         if ($this->sort !== '') {
             $url->param('sort', $this->sort);
         }
-        if ($this->format !== '') {
-            $url->param('format', $this->format);
+        if ($this->dataformat !== '') {
+            $url->param('dataformat', $this->dataformat);
         }
         if ($this->page !== 0) {
             $url->param('page', $this->page);
@@ -125,6 +135,7 @@ class progress_report extends report_base {
         if ($this->activityorder !== '') {
             $url->param('activityorder', $this->activityorder);
         }
+        $url->param('activitysection', $this->activitysection);
         return $url;
     }
 
@@ -148,7 +159,8 @@ class progress_report extends report_base {
         [$this->activitytypes, $this->activities] = helper::get_activities_to_show(
             $this->completion,
             $this->activityinclude,
-            $this->activityorder
+            $this->activityorder,
+            $this->activitysection
         );
 
         $this->load_totals();
@@ -162,8 +174,8 @@ class progress_report extends report_base {
                 $params,
                 $this->groupid,
                 $this->sort === 'firstname' ? 'u.firstname ASC, u.lastname ASC' : 'u.lastname ASC, u.firstname ASC',
-                $this->csv ? 0 : helper::COMPLETION_REPORT_PAGE,
-                $this->csv ? 0 : $this->page * helper::COMPLETION_REPORT_PAGE,
+                $this->dataformat !== '' ? 0 : helper::COMPLETION_REPORT_PAGE,
+                $this->dataformat !== '' ? 0 : $this->page * helper::COMPLETION_REPORT_PAGE,
                 $this->context
             );
         }
@@ -177,25 +189,11 @@ class progress_report extends report_base {
      */
     public function is_export(): bool {
         $this->require_loaded();
-        return $this->csv && $this->grandtotal && count($this->activities) > 0;
+        return $this->dataformat !== '' && $this->grandtotal && count($this->activities) > 0;
     }
 
     /**
-     * Quotes a value for the CSV file, like core csv_quote() in report/progress/index.php.
-     *
-     * @param string|null $value
-     * @return string
-     */
-    protected function csv_quote($value): string {
-        $value = '"' . str_replace('"', "'", (string) $value) . '"';
-        if ($this->excel) {
-            return \core_text::convert($value, 'UTF-8', 'UTF-16LE');
-        }
-        return $value;
-    }
-
-    /**
-     * Sends the CSV (UTF-8) or Excel CSV (UTF-16LE) file and exits, exactly as core does.
+     * Sends the file in the requested dataformat through \core\dataformat and exits, exactly as core does.
      *
      * @return void
      */
@@ -205,53 +203,75 @@ class progress_report extends report_base {
             throw new \coding_exception('Nothing to export.');
         }
 
-        $filename = 'progress.' . $this->get_export_shortname() . '.csv';
-        header('Content-Disposition: attachment; filename=' . $filename);
-        // Unicode byte-order mark for Excel.
-        if ($this->excel) {
-            header('Content-Type: text/csv; charset=UTF-16LE');
-            print chr(0xFF) . chr(0xFE);
-            $sep = "\t" . chr(0);
-            $line = "\n" . chr(0);
-        } else {
-            header('Content-Type: text/csv; charset=UTF-8');
-            $sep = ",";
-            $line = "\n";
-        }
-
+        $columnnames = [''];
         foreach ($this->extrafields as $field) {
-            echo $sep . $this->csv_quote(\core_user\fields::get_display_name($field));
+            $columnnames[] = \core_user\fields::get_display_name($field);
         }
-
         foreach ($this->activities as $activity) {
             if ($activity->completionexpected) {
                 $datetext = userdate($activity->completionexpected, "%F %T");
             } else {
                 $datetext = '';
             }
-            $displayname = format_string($activity->name, true, ['context' => $activity->context]);
-            print $sep . $this->csv_quote($displayname) . $sep . $this->csv_quote($datetext);
+            $columnnames[] = format_string($activity->name, true, ['context' => $activity->context]);
+            $columnnames[] = $datetext;
         }
-        print $line;
 
         $viewfullnames = has_capability('moodle/site:viewfullnames', $this->context);
+        $alldata = [];
         foreach ($this->progress as $user) {
-            print $this->csv_quote(fullname($user, $viewfullnames));
+            $row = [];
+            $row['fullname'] = fullname($user, $viewfullnames);
             foreach ($this->extrafields as $field) {
-                echo $sep . $this->csv_quote($user->{$field});
+                $row[$field] = $user->{$field};
             }
-
+            $i = 0;
             foreach ($this->activities as $activity) {
                 $cell = $this->get_cell_state($user, $activity);
-                $date = '';
-                if ($cell->progress) {
-                    $date = userdate($cell->progress->timemodified, "%F %T");
-                }
-                print $sep . $this->csv_quote($cell->describe) . $sep . $this->csv_quote($date);
+                $row[$i++] = $cell->describe;
+                $row[$i++] = $cell->progress ? userdate($cell->progress->timemodified, "%F %T") : '';
             }
-            print $line;
+            $alldata[] = $row;
         }
-        exit;
+
+        $extrafields = $this->extrafields;
+        \core\dataformat::download_data(
+            'progress.' . $this->get_export_shortname(),
+            $this->dataformat,
+            $columnnames,
+            $alldata,
+            function (array $record, bool $supportshtml) use ($extrafields): array {
+                if ($supportshtml) {
+                    foreach ($extrafields as $extrafield) {
+                        $record[$extrafield] = s($record[$extrafield]);
+                    }
+                }
+                return $record;
+            },
+        );
+        die;
+    }
+
+    /**
+     * Returns the sections that hold at least one activity with completion tracking, as core does.
+     *
+     * @return array section number => section name
+     */
+    protected function get_section_options(): array {
+        $modinfo = get_fast_modinfo($this->course);
+        $cmids = array_keys($this->completion->get_activities());
+        $sections = [];
+        foreach ($modinfo->get_sections() as $sectionnum => $section) {
+            if (empty(array_intersect($section, $cmids))) {
+                continue;
+            }
+            $sectionname = get_section_name($this->course, $sectionnum);
+            if (empty($sectionname)) {
+                $sectionname = get_string('section') . ' ' . $sectionnum;
+            }
+            $sections[$sectionnum] = $sectionname;
+        }
+        return $sections;
     }
 
     /**
@@ -333,13 +353,16 @@ class progress_report extends report_base {
         $PAGE->requires->js_call_amd('report_progress/completion_override', 'init', [fullname($USER)]);
 
         // Handle groups (if enabled).
-        $html .= $output->render_groups_select($url, $this->course);
+        $html .= $output->render_groups_select($url, $this->course, $this->groupid);
 
         // Display include activity filter.
         $html .= $output->render_include_activity_select($url, $this->activitytypes, $this->activityinclude);
 
         // Display activity order options.
         $html .= $output->render_activity_order_select($url, $this->activityorder);
+
+        // Display section selector.
+        $html .= $output->render_activity_section_select($url, (string) $this->activitysection, $this->get_section_options());
 
         if (count($this->activities) == 0) {
             $html .= $OUTPUT->container(get_string('err_noactivities', 'completion'), 'errorbox errorboxcontent');
@@ -359,12 +382,19 @@ class progress_report extends report_base {
         $html .= $pagingbar;
 
         if (!$this->total) {
-            $html .= $OUTPUT->heading(get_string('nothingtodisplay'));
+            $html .= $OUTPUT->notification(get_string('nothingtodisplay'), 'info', false);
             return $html;
         }
 
         $html .= $this->output_table($url);
-        $html .= $output->render_download_buttons($url);
+
+        // Add buttons for exporting report.
+        $html .= $OUTPUT->download_dataformat_selector(
+            get_string('downloadas', 'table'),
+            $url->out_omit_querystring(),
+            'dataformat',
+            $url->params()
+        );
 
         return $html;
     }
@@ -382,7 +412,7 @@ class progress_report extends report_base {
         $canoverride = has_capability('moodle/course:overridecompletion', $this->context);
 
         $html = '<div id="completion-progress-wrapper" class="no-overflow">';
-        $html .= '<table id="completion-progress" class="generaltable flexible boxaligncenter" style="text-align:left">' .
+        $html .= '<table id="completion-progress" class="table generaltable flexible table-striped table-hover">' .
             '<thead><tr style="vertical-align:top">';
 
         // User heading / sort option.

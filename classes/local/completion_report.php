@@ -35,7 +35,7 @@ require_once($CFG->libdir . '/csvlib.class.php');
 /**
  * Course completion report.
  *
- * Port of the core report/completion/index.php script (Moodle 4.1) where the first/last name initials bar
+ * Port of the core report/completion/index.php script (Moodle 5.2) where the first/last name initials bar
  * has been replaced by {@see user_filter}. The markup, the export files and the "mark as complete" links
  * (role criteria) are kept identical to core.
  *
@@ -272,6 +272,15 @@ class completion_report extends report_base {
     }
 
     /**
+     * Returns the format of the completion dates: ISO-like in the exports, the short date and time otherwise (as core).
+     *
+     * @return string
+     */
+    protected function get_date_format(): string {
+        return $this->csv ? '%F %T' : get_string('strftimedatetimeshort', 'langconfig');
+    }
+
+    /**
      * Works out the state of a user for a criterion, as core does.
      *
      * @param \stdClass $user User record with the 'progress' array.
@@ -282,7 +291,7 @@ class completion_report extends report_base {
         $criteriacompletion = $this->completion->get_user_completion($user->id, $criterion);
         $iscomplete = $criteriacompletion->is_complete();
         if ($iscomplete) {
-            $date = userdate($criteriacompletion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
+            $date = userdate($criteriacompletion->timecompleted, $this->get_date_format());
         } else {
             $date = '';
         }
@@ -357,7 +366,7 @@ class completion_report extends report_base {
 
         $a = new \stdClass();
         if ($iscomplete) {
-            $a->date = userdate($ccompletion->timecompleted, get_string('strftimedatetimeshort', 'langconfig'));
+            $a->date = userdate($ccompletion->timecompleted, $this->get_date_format());
         } else {
             $a->date = '';
         }
@@ -400,7 +409,7 @@ class completion_report extends report_base {
         $html .= $this->output_paging_bar();
 
         if (!$this->total) {
-            $html .= $OUTPUT->heading(get_string('nothingtodisplay'), 2);
+            $html .= $OUTPUT->notification(get_string('nothingtodisplay'), 'info', false);
             return $html;
         }
 
@@ -541,7 +550,7 @@ class completion_report extends report_base {
         $viewfullnames = has_capability('moodle/site:viewfullnames', $this->context);
 
         $html = '<table id="completion-progress" class="table table-bordered generaltable flexible boxaligncenter ' .
-            'completionreport" style="text-align: left" cellpadding="5" border="1">';
+            'completionreport table-hover" style="text-align: left" cellpadding="5" border="1">';
 
         // Print criteria group names.
         $html .= PHP_EOL . '<thead><tr style="vertical-align: top">';

@@ -32,7 +32,7 @@ namespace report_completionsearch\local;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \report_completionsearch\local\user_filter
  */
-class user_filter_test extends \advanced_testcase {
+final class user_filter_test extends \advanced_testcase {
     /**
      * Data provider of the three supported filter fields.
      *
