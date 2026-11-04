@@ -10,7 +10,9 @@ Moodle course report that brings the core **Course completion** (`report_complet
 
 ## Requirements
 
+- Moodle 5.3 (branch `MOODLE_503_STABLE`), PHP 8.3 – 8.4.
 - Moodle 5.2 (branch `MOODLE_502_STABLE`), PHP 8.3 – 8.4.
+- Moodle 5.1 (branch `MOODLE_501_STABLE`), PHP 8.2 – 8.4.
 - Moodle 4.1 (branch `MOODLE_401_STABLE`), PHP 7.4 – 8.1.
 - Completion tracking enabled on the site and in the course.
 - Core plugins `report_progress` and `report_completion` (their strings and AMD modules are reused).
@@ -20,7 +22,9 @@ Moodle course report that brings the core **Course completion** (`report_complet
 | Moodle version | Branch              |
 |----------------|---------------------|
 | 4.1            | `MOODLE_401_STABLE` |
+| 5.1            | `MOODLE_501_STABLE` |
 | 5.2            | `MOODLE_502_STABLE` |
+| 5.3            | `MOODLE_503_STABLE` |
 | Development    | `main`              |
 
 ## Installation
@@ -28,13 +32,13 @@ Moodle course report that brings the core **Course completion** (`report_complet
 Using git, from the Moodle root:
 
 ```bash
-# Moodle 5.2 (plugins live under public/)
+# Moodle 5.1, 5.2 or 5.3 (plugins live under public/): MOODLE_501_STABLE, MOODLE_502_STABLE or MOODLE_503_STABLE
 git clone -b MOODLE_502_STABLE https://github.com/daniloalexandre182/moodle-report_completionsearch.git public/report/completionsearch
 # Moodle 4.1
 git clone -b MOODLE_401_STABLE https://github.com/daniloalexandre182/moodle-report_completionsearch.git report/completionsearch
 ```
 
-Or download the ZIP and extract it to `public/report/completionsearch` (5.2) or `report/completionsearch` (4.1). Then visit
+Or download the ZIP and extract it to `public/report/completionsearch` (5.1 or later) or `report/completionsearch` (4.1). Then visit
 *Site administration → Notifications* to complete the installation.
 
 ## Usage
@@ -44,7 +48,7 @@ Or download the ZIP and extract it to `public/report/completionsearch` (5.2) or 
 3. Choose the field to search in, type the text (partial, case-insensitive) and the report
    (*Course completion* is selected by default), then click *Search*.
 
-The activity completion view keeps the core 5.2 tools: group, activity type, order and section
+The activity completion view keeps the tools of the core report: group, activity type, order and section
 selectors, and download in any enabled dataformat (CSV, Excel, ODS, JSON, HTML, PDF).
 
 No users are loaded when the page is first opened. Submitting an empty search lists every tracked
@@ -63,7 +67,7 @@ The plugin does not store any personal data (privacy null provider).
 
 ## Português
 
-Relatório de curso para o Moodle 5.2 e 4.1 que reúne os relatórios nativos **Conclusão do curso** e
+Relatório de curso para o Moodle 5.1, 5.2, 5.3 e 4.1 que reúne os relatórios nativos **Conclusão do curso** e
 **Conclusão de atividades** em uma única página, com filtro de usuários por nome completo, e-mail
 ou nome de usuário.
 
@@ -72,7 +76,7 @@ ou nome de usuário.
 Na raiz do Moodle:
 
 ```bash
-# Moodle 5.2 (plugins live under public/)
+# Moodle 5.1, 5.2 or 5.3 (plugins live under public/): MOODLE_501_STABLE, MOODLE_502_STABLE or MOODLE_503_STABLE
 git clone -b MOODLE_502_STABLE https://github.com/daniloalexandre182/moodle-report_completionsearch.git public/report/completionsearch
 # Moodle 4.1
 git clone -b MOODLE_401_STABLE https://github.com/daniloalexandre182/moodle-report_completionsearch.git report/completionsearch
