@@ -31,7 +31,7 @@ use report_progress\local\helper;
 /**
  * Activity completion report.
  *
- * Port of the core report/progress/index.php script (Moodle 5.2) where the first/last name initials bar
+ * Port of the core report/progress/index.php script (Moodle 5.1) where the first/last name initials bar
  * has been replaced by {@see user_filter}. The markup, the section and group selectors, the dataformat
  * downloads and the manual completion override (AMD module report_progress/completion_override) are kept
  * identical to core.

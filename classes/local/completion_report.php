@@ -35,7 +35,7 @@ require_once($CFG->libdir . '/csvlib.class.php');
 /**
  * Course completion report.
  *
- * Port of the core report/completion/index.php script (Moodle 5.2) where the first/last name initials bar
+ * Port of the core report/completion/index.php script (Moodle 5.1) where the first/last name initials bar
  * has been replaced by {@see user_filter}. The markup, the export files and the "mark as complete" links
  * (role criteria) are kept identical to core.
  *

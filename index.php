@@ -70,7 +70,7 @@ if (!array_key_exists($reporttype, $reportoptions)) {
     $reporttype = report_base::TYPE_COMPLETION;
 }
 
-// Get group mode. As the core activity completion report does in Moodle 5.2, any visible group can be picked
+// Get group mode. As the core activity completion report does in Moodle 5.1, any visible group can be picked
 // through the 'group' parameter unless the course is in separate groups mode.
 if ($reporttype === report_base::TYPE_PROGRESS && $course->groupmode != SEPARATEGROUPS) {
     // Unlike core, also make sure the group belongs to this course.
