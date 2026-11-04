@@ -2,6 +2,19 @@
 
 All notable changes to `report_completionsearch` are documented in this file.
 
+## [1.2.0] - 2026-11-04 (version 2026110401)
+
+### Changed
+- Moodle 5.3 support (branch `MOODLE_503_STABLE`, requires 5.3, PHP 8.3 – 8.4). The 5.2 version stays on
+  `MOODLE_502_STABLE` and the 5.1 version on `MOODLE_501_STABLE`.
+- Activity completion view, as the Moodle 5.3 `report_progress` (MDL-87084):
+  - An overridden "pass" state has its own icon and description ("achieved pass grade, set by ...").
+  - Overridden pass/fail states can be reverted by hand; only automatically computed pass/fail states stay locked.
+  - Completion records without a modification time show an empty date instead of 1 January 1970.
+- Course completion view: download through the dataformat selector (`dataformat`) instead of the CSV/Excel
+  links (`format`), as the Moodle 5.3 `report_completion`. The file name includes the date and time.
+- GitHub Actions matrix moved to `MOODLE_503_STABLE` (PHP 8.3/PostgreSQL 17 and PHP 8.4/MariaDB 11.4).
+
 ## [1.1.0] - 2026-11-04 (version 2026110400)
 
 ### Changed

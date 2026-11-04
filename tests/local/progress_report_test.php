@@ -26,7 +26,7 @@
 namespace report_completionsearch\local;
 
 /**
- * Tests for the activity completion report (section and group selectors, dataformat downloads).
+ * Tests for the activity completion report (section and group selectors, dataformat downloads, overrides).
  *
  * @package    report_completionsearch
  * @category   test
@@ -43,6 +43,12 @@ final class progress_report_test extends \advanced_testcase {
 
     /** @var \stdClass The group holding only Maria. */
     protected $group;
+
+    /** @var \stdClass Maria. */
+    protected $maria;
+
+    /** @var \stdClass Joao. */
+    protected $joao;
 
     /**
      * Creates a course with one tracked page in sections 1 and 2, two students and a group holding one of them.
@@ -72,10 +78,10 @@ final class progress_report_test extends \advanced_testcase {
         $timestart = time() - DAYSECS;
         $mariaparams = ['firstname' => 'Maria', 'lastname' => 'Souza'];
         $joaoparams = ['firstname' => 'Joao', 'lastname' => 'Silva'];
-        $maria = $generator->create_and_enrol($this->course, 'student', $mariaparams, 'manual', $timestart);
-        $generator->create_and_enrol($this->course, 'student', $joaoparams, 'manual', $timestart);
+        $this->maria = $generator->create_and_enrol($this->course, 'student', $mariaparams, 'manual', $timestart);
+        $this->joao = $generator->create_and_enrol($this->course, 'student', $joaoparams, 'manual', $timestart);
         $this->group = $generator->create_group(['courseid' => $this->course->id, 'name' => 'Group Maria']);
-        $generator->create_group_member(['groupid' => $this->group->id, 'userid' => $maria->id]);
+        $generator->create_group_member(['groupid' => $this->group->id, 'userid' => $this->maria->id]);
     }
 
     /**
@@ -161,5 +167,44 @@ final class progress_report_test extends \advanced_testcase {
 
         $this->assertTrue($report->is_export());
         $this->assertSame('csv', $report->get_url()->param('dataformat'));
+    }
+
+    /**
+     * As in core 5.3, an overridden pass state has its own icon and description and can be reverted, while an
+     * automatically computed pass state cannot be changed by hand.
+     */
+    public function test_overridden_pass_state(): void {
+        global $DB, $USER;
+
+        $page = $this->getDataGenerator()->create_module('page', [
+            'course' => $this->course->id,
+            'name' => 'PageAutomatic',
+            'section' => 1,
+            'completion' => COMPLETION_TRACKING_AUTOMATIC,
+            'completionview' => 1,
+        ]);
+        $DB->insert_record('course_modules_completion', [
+            'coursemoduleid' => $page->cmid,
+            'userid' => $this->maria->id,
+            'completionstate' => COMPLETION_COMPLETE_PASS,
+            'overrideby' => $USER->id,
+            'timemodified' => 0,
+        ]);
+        $DB->insert_record('course_modules_completion', [
+            'coursemoduleid' => $page->cmid,
+            'userid' => $this->joao->id,
+            'completionstate' => COMPLETION_COMPLETE_PASS,
+            'overrideby' => null,
+            'timemodified' => time(),
+        ]);
+
+        $html = $this->get_report(0, [])->output();
+
+        $this->assertStringContainsString(get_string('completion-pass-override', 'completion', fullname($USER)), $html);
+        $this->assertStringContainsString(get_string('completion-pass', 'completion'), $html);
+        // The override is revertable (back to incomplete), the automatic pass state is not.
+        $revert = 'data-changecompl="' . $this->maria->id . '-' . $page->cmid . '-' . COMPLETION_INCOMPLETE . '"';
+        $this->assertStringContainsString($revert, $html);
+        $this->assertStringNotContainsString('data-changecompl="' . $this->joao->id . '-' . $page->cmid . '-', $html);
     }
 }

@@ -87,11 +87,6 @@
     margin-bottom: 30px;
 }
 
-#page-report-completionsearch-index .export-actions {
-    text-align: center;
-    list-style: none;
-}
-
 #page-report-completionsearch-index .criterianame,
 #page-report-completionsearch-index .criteriaicon,
 #page-report-completionsearch-index .completion-progresscell {

@@ -76,14 +76,8 @@ abstract class report_base {
     /** @var string Requested sort ('' or 'firstname'/'lastname'). */
     protected $sort;
 
-    /** @var string Requested export format ('', 'csv' or 'excelcsv'). */
-    protected $format;
-
-    /** @var bool Whether the Excel (UTF-16LE, tab separated) CSV was requested. */
-    protected $excel;
-
-    /** @var bool Whether any CSV export was requested. */
-    protected $csv;
+    /** @var string Requested download dataformat ('' for the HTML report). */
+    protected $dataformat;
 
     /** @var \completion_info|null Completion info, set by load(). */
     protected $completion = null;
@@ -108,7 +102,7 @@ abstract class report_base {
      * @param user_filter $filter The user filter.
      * @param \moodle_url $filterurl URL of the report page holding the filter parameters.
      * @param int $groupid The active group (as returned by groups_get_course_group()).
-     * @param array $options Report options: 'sort' (string), 'format' (string) plus report specific ones.
+     * @param array $options Report options: 'sort' (string), 'dataformat' (string) plus report specific ones.
      */
     public function __construct(
         \stdClass $course,
@@ -124,9 +118,16 @@ abstract class report_base {
         $this->filterurl = new \moodle_url($filterurl);
         $this->groupid = $groupid;
         $this->sort = (string) ($options['sort'] ?? '');
-        $this->format = (string) ($options['format'] ?? '');
-        $this->excel = $this->format === 'excelcsv';
-        $this->csv = $this->format === 'csv' || $this->excel;
+        $this->dataformat = (string) ($options['dataformat'] ?? '');
+    }
+
+    /**
+     * Whether a download was requested (a dataformat was given).
+     *
+     * @return bool
+     */
+    protected function is_download(): bool {
+        return $this->dataformat !== '';
     }
 
     /**

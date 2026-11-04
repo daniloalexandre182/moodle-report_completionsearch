@@ -31,7 +31,7 @@ use report_progress\local\helper;
 /**
  * Activity completion report.
  *
- * Port of the core report/progress/index.php script (Moodle 5.2) where the first/last name initials bar
+ * Port of the core report/progress/index.php script (Moodle 5.3) where the first/last name initials bar
  * has been replaced by {@see user_filter}. The markup, the section and group selectors, the dataformat
  * downloads and the manual completion override (AMD module report_progress/completion_override) are kept
  * identical to core.
@@ -55,9 +55,6 @@ class progress_report extends report_base {
 
     /** @var int Section number the activities are filtered by (-1 for every section). */
     protected $activitysection;
-
-    /** @var string Requested download dataformat ('' for the HTML report). */
-    protected $dataformat;
 
     /** @var array Available activity types, set by load(). */
     protected $activitytypes = [];
@@ -94,7 +91,6 @@ class progress_report extends report_base {
         $this->activityinclude = (string) ($options['activityinclude'] ?? 'all');
         $this->activityorder = (string) ($options['activityorder'] ?? 'orderincourse');
         $this->activitysection = (int) ($options['activitysection'] ?? -1);
-        $this->dataformat = (string) ($options['dataformat'] ?? '');
 
         // Whether to show extra user identity information.
         $userfields = \core_user\fields::for_identity($context);
@@ -120,7 +116,7 @@ class progress_report extends report_base {
         if ($this->sort !== '') {
             $url->param('sort', $this->sort);
         }
-        if ($this->dataformat !== '') {
+        if ($this->is_download()) {
             $url->param('dataformat', $this->dataformat);
         }
         if ($this->page !== 0) {
@@ -174,8 +170,8 @@ class progress_report extends report_base {
                 $params,
                 $this->groupid,
                 $this->sort === 'firstname' ? 'u.firstname ASC, u.lastname ASC' : 'u.lastname ASC, u.firstname ASC',
-                $this->dataformat !== '' ? 0 : helper::COMPLETION_REPORT_PAGE,
-                $this->dataformat !== '' ? 0 : $this->page * helper::COMPLETION_REPORT_PAGE,
+                $this->is_download() ? 0 : helper::COMPLETION_REPORT_PAGE,
+                $this->is_download() ? 0 : $this->page * helper::COMPLETION_REPORT_PAGE,
                 $this->context
             );
         }
@@ -189,7 +185,7 @@ class progress_report extends report_base {
      */
     public function is_export(): bool {
         $this->require_loaded();
-        return $this->dataformat !== '' && $this->grandtotal && count($this->activities) > 0;
+        return $this->is_download() && $this->grandtotal && count($this->activities) > 0;
     }
 
     /**
@@ -229,7 +225,7 @@ class progress_report extends report_base {
             foreach ($this->activities as $activity) {
                 $cell = $this->get_cell_state($user, $activity);
                 $row[$i++] = $cell->describe;
-                $row[$i++] = $cell->progress ? userdate($cell->progress->timemodified, "%F %T") : '';
+                $row[$i++] = $cell->timemodified ? userdate($cell->timemodified, "%F %T") : '';
             }
             $alldata[] = $row;
         }
@@ -279,8 +275,8 @@ class progress_report extends report_base {
      *
      * @param \stdClass $user User record with the 'progress' array.
      * @param \cm_info $activity The activity.
-     * @return \stdClass with state, overrideby, date, progress (record or null), completiontype,
-     *                   completiontracking, completionicon and describe.
+     * @return \stdClass with state, overrideby, date, timemodified, completiontype, completiontracking,
+     *                   completionicon and describe.
      */
     protected function get_cell_state(\stdClass $user, \cm_info $activity): \stdClass {
         // Get progress information and state.
@@ -288,13 +284,13 @@ class progress_report extends report_base {
             $thisprogress = $user->progress[$activity->id];
             $state = $thisprogress->completionstate;
             $overrideby = $thisprogress->overrideby;
-            $date = userdate($thisprogress->timemodified);
+            $timemodified = (int) $thisprogress->timemodified;
         } else {
-            $thisprogress = null;
             $state = COMPLETION_INCOMPLETE;
             $overrideby = 0;
-            $date = '';
+            $timemodified = 0;
         }
+        $date = $timemodified ? userdate($timemodified) : '';
 
         // Work out how it corresponds to an icon.
         $completiontype = '';
@@ -306,9 +302,10 @@ class progress_report extends report_base {
                 $completiontype = 'y' . ($overrideby ? '-override' : '');
                 break;
             case COMPLETION_COMPLETE_PASS:
-                $completiontype = 'pass';
+                $completiontype = 'pass' . ($overrideby ? '-override' : '');
                 break;
             case COMPLETION_COMPLETE_FAIL:
+                // No '-override' variant: an override can never produce this state, as in core 5.3.
                 $completiontype = 'fail';
                 break;
         }
@@ -327,7 +324,7 @@ class progress_report extends report_base {
             'state' => $state,
             'overrideby' => $overrideby,
             'date' => $date,
-            'progress' => $thisprogress,
+            'timemodified' => $timemodified,
             'completiontype' => $completiontype,
             'completiontracking' => $completiontracking,
             'completionicon' => 'completion-' . $completiontracking . '-' . $completiontype,
@@ -493,8 +490,11 @@ class progress_report extends report_base {
                 $fulldescribe = get_string('progress-title', 'completion', $a);
 
                 $celltext = $OUTPUT->pix_icon('i/' . $cell->completionicon, s($fulldescribe));
-                if ($canoverride && $cell->state != COMPLETION_COMPLETE_PASS && $cell->state != COMPLETION_COMPLETE_FAIL) {
-                    $newstate = ($cell->state == COMPLETION_COMPLETE) ? COMPLETION_INCOMPLETE : COMPLETION_COMPLETE;
+                // As in core 5.3, an overridden pass/fail state stays revertable; only an automatically computed
+                // pass/fail state is left alone.
+                $ispassfail = $cell->state == COMPLETION_COMPLETE_PASS || $cell->state == COMPLETION_COMPLETE_FAIL;
+                if ($canoverride && ($cell->overrideby || !$ispassfail)) {
+                    $newstate = ($cell->state == COMPLETION_INCOMPLETE) ? COMPLETION_COMPLETE : COMPLETION_INCOMPLETE;
                     $changecompl = $user->id . '-' . $activity->id . '-' . $newstate;
                     $changeurl = new moodle_url($url, ['sesskey' => sesskey()]);
                     $celltext = html_writer::link($changeurl, $celltext, [

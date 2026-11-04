@@ -41,9 +41,8 @@ $search = optional_param('search', '', PARAM_TEXT);
 $reporttype = optional_param('report', report_base::TYPE_COMPLETION, PARAM_ALPHA);
 $run = optional_param('run', false, PARAM_BOOL);
 
-// Export, sorting and paging, as in core: the course completion report exports CSV files ('format') and pages
-// with 'start', the activity completion report exports any dataformat ('dataformat') and pages with 'page'.
-$format = optional_param('format', '', PARAM_ALPHA);
+// Export, sorting and paging, as in core: both reports export any dataformat ('dataformat'); the course completion
+// report pages with 'start' and the activity completion report with 'page'.
 $dataformat = optional_param('dataformat', '', PARAM_ALPHA);
 $sort = optional_param('sort', '', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
@@ -70,7 +69,7 @@ if (!array_key_exists($reporttype, $reportoptions)) {
     $reporttype = report_base::TYPE_COMPLETION;
 }
 
-// Get group mode. As the core activity completion report does in Moodle 5.2, any visible group can be picked
+// Get group mode. As the core activity completion report does in Moodle 5.3, any visible group can be picked
 // through the 'group' parameter unless the course is in separate groups mode.
 if ($reporttype === report_base::TYPE_PROGRESS && $course->groupmode != SEPARATEGROUPS) {
     // Unlike core, also make sure the group belongs to this course.
@@ -127,10 +126,10 @@ if (!$run) {
 
 $options = [
     'sort' => $sort,
+    'dataformat' => $dataformat,
 ];
 if ($reporttype === report_base::TYPE_PROGRESS) {
     $options += [
-        'dataformat' => $dataformat,
         'page' => $page,
         'activityinclude' => $activityinclude,
         'activityorder' => $activityorder,
@@ -138,7 +137,6 @@ if ($reporttype === report_base::TYPE_PROGRESS) {
     ];
     $report = new progress_report($course, $context, $filter, $filterurl, $group, $options);
 } else {
-    $options['format'] = $format;
     $options['start'] = $start;
     $report = new completion_report($course, $context, $filter, $filterurl, $group, $options);
 }
@@ -154,7 +152,7 @@ $report->load();
     'other' => ['report' => $report->get_type()],
 ])->trigger();
 
-// CSV/Excel export: sends the file and exits before any HTML output.
+// Download: sends the file and exits before any HTML output.
 if ($report->is_export()) {
     $report->export();
 }

@@ -30,16 +30,15 @@ use moodle_url;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/completionlib.php');
-require_once($CFG->libdir . '/csvlib.class.php');
 
 /**
  * Course completion report.
  *
- * Port of the core report/completion/index.php script (Moodle 5.2) where the first/last name initials bar
+ * Port of the core report/completion/index.php script (Moodle 5.3) where the first/last name initials bar
  * has been replaced by {@see user_filter}. The markup, the export files and the "mark as complete" links
  * (role criteria) are kept identical to core.
  *
- * Supported options (constructor): 'sort', 'format', 'start'.
+ * Supported options (constructor): 'sort', 'dataformat', 'start'.
  *
  * @package    report_completionsearch
  * @copyright  2026 Danilo Machado <danilo.alexandre182@gmail.com>
@@ -72,7 +71,7 @@ class completion_report extends report_base {
      * @param user_filter $filter The user filter.
      * @param moodle_url $filterurl URL of the report page holding the filter parameters.
      * @param int $groupid The active group (as returned by groups_get_course_group()).
-     * @param array $options 'sort', 'format', 'start'.
+     * @param array $options 'sort', 'dataformat', 'start'.
      */
     public function __construct(
         \stdClass $course,
@@ -107,6 +106,9 @@ class completion_report extends report_base {
         $url = new moodle_url($this->filterurl);
         if ($this->sort !== '') {
             $url->param('sort', $this->sort);
+        }
+        if ($this->is_download()) {
+            $url->param('dataformat', $this->dataformat);
         }
         if ($this->start > 0) {
             $url->param('start', $this->start);
@@ -162,7 +164,7 @@ class completion_report extends report_base {
         // Can logged in user mark users as complete?
         // (if the logged in user has a role defined in the role criteria).
         $this->allowmarkingcriteria = null;
-        if (!$this->csv) {
+        if (!$this->is_download()) {
             $rcriteria = $this->completion->get_criteria(COMPLETION_CRITERIA_TYPE_ROLE);
             foreach ($rcriteria as $rcriterion) {
                 $users = get_role_users($rcriterion->role, $this->context, true);
@@ -186,8 +188,8 @@ class completion_report extends report_base {
                 $params,
                 $this->groupid,
                 $this->sort === 'firstname' ? 'u.firstname ASC' : 'u.lastname ASC',
-                $this->csv ? 0 : self::PAGE_SIZE,
-                $this->csv ? 0 : $this->start,
+                $this->is_download() ? 0 : self::PAGE_SIZE,
+                $this->is_download() ? 0 : $this->start,
                 $this->context
             );
         }
@@ -201,11 +203,11 @@ class completion_report extends report_base {
      */
     public function is_export(): bool {
         $this->require_loaded();
-        return $this->csv && $this->grandtotal;
+        return $this->is_download() && $this->grandtotal;
     }
 
     /**
-     * Sends the CSV/Excel file through csv_export_writer and exits, exactly as core does.
+     * Sends the file in the requested dataformat through \core\dataformat and exits, exactly as core 5.3 does.
      *
      * @return void
      */
@@ -215,10 +217,7 @@ class completion_report extends report_base {
             throw new \coding_exception('Nothing to export.');
         }
 
-        $export = new \csv_export_writer('comma', '"', 'application/download', $this->excel);
-        $export->set_filename('completion-' . $this->get_export_shortname());
-
-        // The CSV headers.
+        // Download column names.
         $row = [];
         $row[] = get_string('id', 'report_completion');
         $row[] = get_string('name', 'report_completion');
@@ -243,15 +242,16 @@ class completion_report extends report_base {
             }
         }
         $row[] = get_string('coursecomplete', 'completion');
-        $export->add_data($row);
+        $columnnames = $row;
 
         $viewfullnames = has_capability('moodle/site:viewfullnames', $this->context);
+        $alldata = [];
         foreach ($this->progress as $user) {
             $row = [];
             $row[] = $user->id;
             $row[] = fullname($user, $viewfullnames);
             foreach ($this->extrafields as $field) {
-                $row[] = $user->{$field};
+                $row[$field] = $user->{$field};
             }
 
             foreach ($this->criteria as $criterion) {
@@ -265,10 +265,25 @@ class completion_report extends report_base {
             $course = $this->get_course_cell($user);
             $row[] = $course->date;
 
-            $export->add_data($row);
+            $alldata[] = $row;
         }
 
-        $export->download_file();
+        $extrafields = $this->extrafields;
+        \core\dataformat::download_data(
+            clean_filename('completion-' . $this->get_export_shortname() . '-' . gmdate('Ymd_Hi')),
+            $this->dataformat,
+            $columnnames,
+            $alldata,
+            function (array $record, bool $supportshtml) use ($extrafields): array {
+                if ($supportshtml) {
+                    foreach ($extrafields as $extrafield) {
+                        $record[$extrafield] = s($record[$extrafield]);
+                    }
+                }
+                return $record;
+            },
+        );
+        die;
     }
 
     /**
@@ -277,7 +292,7 @@ class completion_report extends report_base {
      * @return string
      */
     protected function get_date_format(): string {
-        return $this->csv ? '%F %T' : get_string('strftimedatetimeshort', 'langconfig');
+        return $this->is_download() ? '%F %T' : get_string('strftimedatetimeshort', 'langconfig');
     }
 
     /**
@@ -415,15 +430,15 @@ class completion_report extends report_base {
 
         $html .= $this->output_table();
 
-        $csvurl = $this->get_filter_url();
-        $csvurl->param('format', 'csv');
-        $excelurl = $this->get_filter_url();
-        $excelurl->param('format', 'excelcsv');
-
-        $html .= '<ul class="export-actions">';
-        $html .= '<li><a href="' . $csvurl->out() . '">' . get_string('csvdownload', 'completion') . '</a></li>';
-        $html .= '<li><a href="' . $excelurl->out() . '">' . get_string('excelcsvdownload', 'completion') . '</a></li>';
-        $html .= '</ul>';
+        // Download in any enabled dataformat, as core 5.3 (the whole filtered list, in the current sort order).
+        $downloadurl = $this->get_url();
+        $downloadurl->remove_params('start');
+        $html .= $OUTPUT->download_dataformat_selector(
+            get_string('downloadas', 'table'),
+            $downloadurl->out_omit_querystring(),
+            'dataformat',
+            $downloadurl->params()
+        );
 
         return $html;
     }
